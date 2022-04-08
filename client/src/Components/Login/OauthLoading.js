@@ -85,6 +85,8 @@ function OauthLoading() {
             console.log(res.data.data);
             localStorage.setItem("accessToken", res.data.data.accessToken);
             localStorage.setItem("nickname", res.data.data.nickname);
+            localStorage.setItem("Oauth", res.data.data.oauth);
+            
             if (res.data.data.accessToken) {
               localStorage.setItem("accessToken", res.data.data.accessToken);
               localStorage.setItem("Oauth", res.data.data.oauth);
