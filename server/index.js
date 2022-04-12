@@ -48,6 +48,24 @@ app.use(
 );
 app.use(cookieParser());
 
+app.set('trust proxy', 1); // 서버가 프록시 뒤에 있음을 명시
+app.use(cookieParser());
+app.use(
+  session({
+    resave: false,
+    saveUninitialized: false,
+    secret: process.env.COOKIE_SECRET,
+    proxy: true,
+    cookie: {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 5,
+      sameSite: 'strict', // sameSite임을 명시
+      domain: '.dimelo.io', // 앞에 .을 찍어야함
+      secure: true, // https환경임을 명시
+    },
+  }),
+);
+
 // app.use(bodyParser.json());
 // app.use(bodyParser.urlencoded({extended: true}));
 // app.use(form_data.array());
@@ -98,12 +116,9 @@ app.post("/data", controllers.data);
 // 주제별 식당 추천
 app.get("/topicshop/:topic", controllers.topicshop);
 
-// shop 테이블 정보 여러개 가져오기
-app.post("/shopmanyinfo", controllers.shopmanyinfo);
-// shop_pic 테이블 정보 여러개 가져오기
-app.post("/shopmanypics", controllers.shopmanypics);
 // review 테이블 정보 여러개 가져오기
 app.post("/shopmanyreviews", controllers.shopmanyreviews);
+
 // 즐겨찾기 추가/제거
 app.post("/bookmark", controllers.bookmark);
 
