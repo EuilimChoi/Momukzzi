@@ -25,29 +25,29 @@ module.exports = {
   // },
 
 
-  development: {
+development: {
     username: "root",
     password: "1234",
     database: "momukzzi",
     host: "127.0.0.1",
     dialect: "mysql",
-  },
+},
 
-  test: {
+test: {
     username: "root",
     password: "1234",
     database: "momukzzi",
     host: "127.0.0.1",
     dialect: "mysql",
-  },
+},
 
-  production: {
+production: {
     username: "root",
     password: "1234",
     database: "momukzzi",
     host: "127.0.0.1",
     dialect: "mysql",
-  },
+},
 
 
 };
