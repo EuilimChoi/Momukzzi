@@ -18,15 +18,18 @@ module.exports = async (req, res) => {
   console.log("req.body.data.length " + req.body.data.length)
 
   for (let i = 0; i < req.body.data.length; i++) {
-    // 데이터 베이스에 있는지 검증
+    // 데이터 베이스에 있는지 검증하고 크롤링 필요한 객체 분류
 
     const shopinfo = await shop.findOne({
       where: {
         location: req.body.data[i].road_address_name,
+        shop_name : req.body.data[i].place_name
       },
     });
+    console.log(shopinfo)
 
     if (shopinfo && shopinfo.dataValues.status === true) {
+
       console.log("from database");
       let photodatas = []; //이미지 크롤링 결과
       let menulist = []; //메뉴 정보 크롤링 결과
@@ -78,6 +81,8 @@ module.exports = async (req, res) => {
     }
   }
 
+  // 여기까지가 데이터 베이스에 있는지 없는지 보는 for loop
+
   console.log("==============================================")
   console.log("req.body.data.length " + req.body.data.length)
   console.log("result.length " + result.length)
@@ -85,7 +90,7 @@ module.exports = async (req, res) => {
   console.log("==============================================")
 
 if(result.length < 10){
-  let needed = crawling.slice(0, 10-result.length)
+  let needed = [...crawling]
   console.log("==============================================")
   console.log("needed " + needed.length)
   console.log("==============================================")
@@ -121,16 +126,72 @@ if(result.length < 10){
           let content = await page.content(needed[i].place_url);
   
           const $ = await cheerio.load(content);
+          // 사진이 안들어오면 다른것도 안받아도 되잖아
           const photolists = await $(
           "#mArticle > div.cont_photo > div.photo_area > ul >li"
           ).children("a");
+          if(photolists.length === 0){
+            await browser.close();
+            console.log("사진이 없음!!!!!!!!")
+
+            await shop.create({
+              shop_name: needed[i].place_name,
+              genus: genus,
+              location: needed[i].road_address_name,
+              work_time: "9:00 ~ 21:00",
+              map_id: needed[i].id,
+              x: needed[i].x,
+              y: needed[i].y,
+              status : false
+              })
+
+              console.log(needed[i].place_name + " 사진이 없는 데이터 저장")
+            continue;
+          }
+
           const menulists = await $(
           "#mArticle > div.cont_menu > ul >li > div"
           ).children("span");
+          if(menulists.length === 0){
+            await browser.close();
+            console.log("메뉴가 없음!!!!!!!!")
+
+            await shop.create({
+              shop_name: needed[i].place_name,
+              genus: genus,
+              location: needed[i].road_address_name,
+              work_time: "9:00 ~ 21:00",
+              map_id: needed[i].id,
+              x: needed[i].x,
+              y: needed[i].y,
+              status : false
+              })
+              console.log(needed[i].place_name + " 메뉴가 없는 데이터 저장")
+              
+            continue;
+          }
+
           const price = await $(
           "#mArticle > div.cont_menu > ul > li > div "
           ).children("em.price_menu");
-  
+          if(price.length === 0){
+            await browser.close();
+            console.log("가격이 없음!!!!!!!!")
+            
+            await shop.create({
+              shop_name: needed[i].place_name,
+              genus: genus,
+              location: needed[i].road_address_name,
+              work_time: "9:00 ~ 21:00",
+              map_id: needed[i].id,
+              x: needed[i].x,
+              y: needed[i].y,
+              status : false
+              })
+            console.log(needed[i].place_name + " 가격이 없는 데이터 저장")
+            continue;
+          }
+
           for (let i = 0; i < photolists.length; i++) {
           let word =
               "https:" +
@@ -241,6 +302,7 @@ if(result.length < 10){
           }
           } catch (err) {
             console.log("ERR!! destroy!!")
+            console.log(err)
             await shop.update({
               status:false
             },{
@@ -250,27 +312,30 @@ if(result.length < 10){
           });
           }
   
-          if (photodatas.length !== 0 && menulist.length !== 0) {
-            result.push({
-                shopinfo: {
-                shop_id: shopid,
-                shopinfo: needed[i],
-                },
-                shoppic: {
-                shop_id: shopid,
-                photodatas,
+          result.push({
+              shopinfo: {
+              shop_id: shopid,
+              shopinfo: needed[i],
+              },
+              shoppic: {
+              shop_id: shopid,
+              photodatas,
               },
               menulist: {
               shop_id: shopid,
               menulist,
               }
-            }
-          );
-        }
+          });
+
+          if (result.length === 10){
+            break
+          }
   }
 }
 
   console.log(result.length)
+
+  //응답 내보냄
   res.status(200).json({
     message: "shopinfo crawling",
     data: {
@@ -297,44 +362,100 @@ for (let i=0; i < crawling.length; i++){
 
   if (!shopinfo) {
     const browser = await puppeteer.launch({args:['--disable-gpu', '--disable-setuid-sandbox', '--no-sandbox', '--no-zygote']});
-  const page = await browser.newPage();
+    const page = await browser.newPage();
 
-  await page.setViewport({
-  width: 1920,
-  height: 1080,
-  });
+    await page.setViewport({
+    width: 1920,
+    height: 1080,
+    });
 
-  await page.goto(crawling[i].place_url,{waitUntil:"networkidle0"}
-  );
+    await page.goto(crawling[i].place_url,{waitUntil:"networkidle0"}
+    );
 
-  await scrollPageToBottom(page, {
-      size: 500,
-  });
+    await scrollPageToBottom(page, {
+        size: 500,
+    });
 
   //await page.waitForSelector("#mArticle > div.cont_menu > ul > li > div")
 
-  let content = await page.content(crawling[i].place_url);
+    let content = await page.content(crawling[i].place_url);
 
-  const $ = await cheerio.load(content);
-  const photolists = await $(
-  "#mArticle > div.cont_photo > div.photo_area > ul >li"
-  ).children("a");
-  const menulists = await $(
-  "#mArticle > div.cont_menu > ul >li > div"
-  ).children("span");
-  const price = await $(
-  "#mArticle > div.cont_menu > ul > li > div "
-  ).children("em.price_menu");
+    const $ = await cheerio.load(content);
 
-  for (let i = 0; i < photolists.length; i++) {
-  let word =
-      "https:" +
-      photolists[i].attribs.style.slice(22, 55) +
-      "R0x420/" +
-      photolists[i].attribs.style.slice(64, -2);
+    const photolists = await $(
+      "#mArticle > div.cont_photo > div.photo_area > ul >li"
+      ).children("a");
+      if(photolists.length === 0){
+        await browser.close();
+        console.log("사진이 없음!!!!!!!!")
 
-  photodatas.push(word);
-  }
+        await shop.create({
+          shop_name: crawling[i].place_name,
+          genus: genus,
+          location: crawling[i].road_address_name,
+          work_time: "9:00 ~ 21:00",
+          map_id: crawling[i].id,
+          x: crawling[i].x,
+          y: crawling[i].y,
+          status : false
+          })
+
+          console.log(crawling[i].place_name + " 사진이 없는 데이터 저장")
+        continue;
+      }
+
+      const menulists = await $(
+      "#mArticle > div.cont_menu > ul >li > div"
+      ).children("span");
+      if(menulists.length === 0){
+        await browser.close();
+        console.log("메뉴가 없음!!!!!!!!")
+
+        await shop.create({
+          shop_name: crawling[i].place_name,
+          genus: genus,
+          location: crawling[i].road_address_name,
+          work_time: "9:00 ~ 21:00",
+          map_id: crawling[i].id,
+          x: crawling[i].x,
+          y: crawling[i].y,
+          status : false
+          })
+          console.log(crawling[i].place_name + " 메뉴가 없는 데이터 저장")
+          
+        continue;
+      }
+
+      const price = await $(
+      "#mArticle > div.cont_menu > ul > li > div "
+      ).children("em.price_menu");
+      if(price.length === 0){
+        await browser.close();
+        console.log("가격이 없음!!!!!!!!")
+        
+        await shop.create({
+          shop_name: crawling[i].place_name,
+          genus: genus,
+          location: crawling[i].road_address_name,
+          work_time: "9:00 ~ 21:00",
+          map_id: crawling[i].id,
+          x: crawling[i].x,
+          y: crawling[i].y,
+          status : false
+          })
+        console.log(crawling[i].place_name + " 가격이 없는 데이터 저장")
+        continue;
+      }
+
+    for (let i = 0; i < photolists.length; i++) {
+    let word =
+        "https:" +
+        photolists[i].attribs.style.slice(22, 55) +
+        "R0x420/" +
+        photolists[i].attribs.style.slice(64, -2);
+
+    photodatas.push(word);
+    }
 
   for (let i = 0; i < menulists.length; i++) {
   if (price.length !== 0) {
@@ -446,4 +567,5 @@ try {
     }
   }
 }
+
 };
